@@ -13,7 +13,7 @@ class CPU:
         self.running = True
         self.sp = 7
         self.reg[self.sp] = 0xf4
-        self.branchtable = {
+        self.branch_table = {
             0b10000010: self.handle_ldi,
             0b00000001: self.handle_hlt,
             0b01000111: self.handle_prn,
@@ -21,7 +21,9 @@ class CPU:
             0b10100000: self.handle_add,
             0b10100001: self.handle_sub,
             0b01000110: self.handle_pop,
-            0b01000101: self.handle_push
+            0b01000101: self.handle_push,
+            0b01010000: self.handle_call,
+            0b00010001: self.handle_ret
         }
 
     def ram_read(self, MAR):
@@ -66,12 +68,32 @@ class CPU:
         self.ram[self.reg[self.sp]] = value
         self.pc += 2
 
+    def handle_call(self, operand_a, operand_b):
+        # Get address of next opcode
+        ret_address = self.pc + 2
+        # Push onto stack
+        self.reg[self.sp] -= 1
+        push_address = self.reg[self.sp]
+        self.ram[push_address] = ret_address
+        # Set pc to subroutine address
+        reg_num = self.ram[self.pc + 1]
+        subr_address = self.reg[reg_num]
+        self.pc = subr_address
+
+    def handle_ret(self, operand_a, operand_b):
+        # Get return address from top of stack
+        pop_address = self.reg[self.sp]
+        ret_address = self.ram[pop_address]
+        self.reg[self.sp] += 1
+        # Set pc to return address
+        self.pc = ret_address
+
     def load(self):
         """Load a program into memory."""
         address = 0
         # file = sys.argv[1]
         try:
-            with open("examples/stack.ls8") as f:
+            with open("examples/call.ls8") as f:
                 for line in f:
                     try:
                         line = line.split('#', 1)[0].strip()
@@ -122,6 +144,6 @@ class CPU:
             operand_b = self.ram_read(self.pc + 2)
 
             try:
-                self.branchtable[opcode](operand_a, operand_b)
+                self.branch_table[opcode](operand_a, operand_b)
             except:
                 print(f'Unknown command: {opcode}')
