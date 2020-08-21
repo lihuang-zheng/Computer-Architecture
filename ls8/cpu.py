@@ -13,6 +13,7 @@ class CPU:
         self.running = True
         self.sp = 7
         self.reg[self.sp] = 0xf4
+        self.flag = 0
         self.branch_table = {
             0b10000010: self.handle_ldi,
             0b00000001: self.handle_hlt,
@@ -23,7 +24,11 @@ class CPU:
             0b01000110: self.handle_pop,
             0b01000101: self.handle_push,
             0b01010000: self.handle_call,
-            0b00010001: self.handle_ret
+            0b00010001: self.handle_ret,
+            0b10100111: self.handle_cmp,
+            0b01010100: self.handle_jmp,
+            0b01010110: self.handle_jne,
+            0b01010101: self.handle_jeq
         }
 
     def ram_read(self, MAR):
@@ -88,12 +93,31 @@ class CPU:
         # Set pc to return address
         self.pc = ret_address
 
+    def handle_cmp(self, operand_a, operand_b):
+        self.alu("CMP", operand_a, operand_b)
+        self.pc += 3
+
+    def handle_jmp(self, operand_a, operand_b):
+        self.pc = self.reg[operand_a]
+
+    def handle_jeq(self, operand_a, operand_b):
+        if self.flag & 0b1 == 1:
+            self.handle_jmp(operand_a, operand_b)
+        else:
+            self.pc += 2
+
+    def handle_jne(self, operand_a, operand_b):
+        if self.flag & 0b1 == 0:
+            self.handle_jmp(operand_a, operand_b)
+        else:
+            self.pc += 2
+
     def load(self):
         """Load a program into memory."""
         address = 0
         # file = sys.argv[1]
         try:
-            with open("examples/call.ls8") as f:
+            with open("examples/sctest.ls8") as f:
                 for line in f:
                     try:
                         line = line.split('#', 1)[0].strip()
@@ -113,6 +137,13 @@ class CPU:
             self.reg[operand_a] *= self.reg[operand_b]
         elif op == "SUB":
             self.reg[operand_a] -= self.reg[operand_b]
+        elif op == "CMP":
+            if self.reg[operand_a] == self.reg[operand_b]:
+                self.flag = 0b00000001
+            elif self.reg[operand_a] < self.reg[operand_b]:
+                self.flag = 0b00000100
+            elif self.reg[operand_a] < self.reg[operand_b]:
+                self.flag = 0b00000010
         else:
             raise Exception("Unsupported ALU operation")
 
